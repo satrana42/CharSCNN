@@ -1,5 +1,6 @@
 import numpy, scipy, theano
 import theano.tensor as T
+import cPickle as pickle
 
 class charnn(object):
 	
@@ -96,7 +97,7 @@ class sentnn(object):
 
 	def embed(self, inp, sent_len, sentvec):
 		# inp: word matrix of sentence
-		# inp size: sent_len *  s
+		# inp size: sent_len * word_vocab_size 
 		# returns: word + char embedding of sentence
 		# size: sent_len * (cd+wd)
 		wemb = T.dot(inp, self.wW)
@@ -109,7 +110,7 @@ class sentnn(object):
 
 	def conv(self, inp, sent_len, sentvec):
 		# inp: word matrix of sent
-		# inp size: word_len * size 
+		# inp size: sent_len * word_vocab_size 
 		# sent_len: length of sentence
 		# sentvec: list containing indices of words
 		# returns: convolutional output
@@ -132,11 +133,18 @@ class sentnn(object):
 	def eval(self, inp, sent_len, sentvec):
 		return T.nnet.sigmoid(self.conv(inp,sent_len,sentvec))
 
-def update(learning_rate=0.1, char_vocab_size, word_vocab_size, sentvec):
+def train(learning_rate=0.1, training_epochs=10, char_vocab_size, word_vocab_size, sentvec, inp):
 	#updates neural net with a sentence as input
 	charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300)
-
-	lr = LogisticRegression(input=charscnn.eval(inp, len(sentvec), sentvec), n_in=300, n_out=1)
+	
+	idx  =T.scalar('idx')
+	x = T.matrix('x')
+	s = T.vector('s')
+	l = T.scalar('l')
+	y = T.vector('y')
+	
+	lr = LogisticRegression(input=charscnn.eval(x, l, s), n_in=300, n_out=1)
+	
 	# the cost we minimize during training is the NLL of the model
 	cost = lr.negative_log_likelihood(y)
 	
@@ -147,16 +155,41 @@ def update(learning_rate=0.1, char_vocab_size, word_vocab_size, sentvec):
 	for param_i, grad_i in zip(params, grads):
 		updates.append((param_i, param_i - learning_rate * grad_i))
 
-	return (cost,updates)
+	train_cnn = theano.function([idx], [T.mean(cost)], updates=updates, givens={x:inp[idx], s:sentvec[idx], l:len(sentvec[idx])}, mode="FAST_RUN")
+
+    start_time = time.clock()
+    
+    ############
+    # TRAINING #
+    ############
+
+    # go through training epochs
+    for epoch in xrange(training_epochs):
+        # go through trainng set
+        c = []
+        for i in xrange(len(sentvec)):
+            c.append(train_cnn(i))
+        c_array = numpy.vstack(c)
+        print 'Training epoch %d, reconstruction cost ' % epoch, numpy.mean(c_array[0]), ' jacobian norm ', numpy.mean(numpy.sqrt(c_array[1]))
+    end_time = time.clock()
+
+    training_time = (end_time - start_time)/60.
+
+    print "Training Time: ", training_time
+	
 
 #data loading code here
+char_vocab_size, word_vocab_size, sentvec, inp, word_char_mat = pickle.load("data.pkl","rb")
+
 def w2c(idx):
 	#returns character matrix of a word #idx
+	return word_char_mat[idx]
 
 def wlen(idx):
 	#returns len of word #idx
+	return len(word_char_mat[idx])
+
+train(char_vocab_size=char_vocab_size, word_vocab_size=word_vocab_size, sentvec=sentvec, inp=inp)
 
 
-#training code here
-cost, updates = ca.get_cost_updates(learning_rate=0.1)
 
