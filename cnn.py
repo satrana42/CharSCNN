@@ -1,6 +1,12 @@
 import numpy, scipy, theano
 import theano.tensor as T
 
+def w2c(idx):
+	#returns character matrix of a word #idx
+
+def wlen(idx):
+	#returns len of word #idx
+
 class charnn(object):
 	
 	def __init__(self, rng, d, s, k, cl, W, C, b):
@@ -22,12 +28,17 @@ class charnn(object):
 		else self.W = W		
 
 	def embed(self, inp):
-		# inp: word_len * size 
-		# returns character embedding of word
-		# size: (word_len * s) * (s * d)
+		# inp: character matrix of word
+		# inp size: word_len * size 
+		# returns: character embedding of word
+		# ret size: (word_len * s) * (s * d)
 		return T.dot(inp,self.W)
 
 	def conv(self, inp, word_len):
+		# inp: character matrix of word
+		# inp size: word_len * size 
+		# returns: convolutional output
+		# size: cl
 		k = self.k
 		d = self.d
 		cl = self.cl
@@ -42,34 +53,34 @@ class charnn(object):
 			val = T.dot(z,C)+b
 			for j in xrange(cl):
 				conv[i] = max(conv[i],val[i])
-		# returns convolutional output
-		# size: cl
+
 		return theano.shared(conv, borrow=True)
 
 class sentnn(object):
 
-	def __init__(self, rng, inp, batch_size, cd, cs, ck, cl, wd, ws, wk, wl, cW, wW, cC, wC, cb, wb):
+	def __init__(self, rng, cd, cs, ck, cl, wd, ws, wk, wl, cW, wW, cC, wC, cb, wb):
+		
+		self.cd = cd #character embedding dimension
+		self.cs = cs #character vocab size
+		self.ck = ck #character window length
+		self.cl = cl #char conv layer out size
 
-		# self.batch_size = batch_size
-		# self.inp = inp
-		
-		self.cd = cd
-		self.cs = cs
-		self.ck = ck
-		
 		self.wd = wd
 		self.ws = ws
 		self.wk = wk
 		self.wl = wl
 		
+		#char embedding matrix
 		if cW == None:
 			self.cW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cd+cs)), high = sqrt(6/(cd+cs)), size=(cs,cd)),dtype=theano.config.floatX),borrow=True)
 		else: self.cW = cW
 
+		#char conv matrix
 		if cC == None:
 			self.cC = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cd*ck+cl)), high = sqrt(6/(cd*ck+cl)), size=(cd*ck,cl)),dtype=theano.config.floatX),borrow=True)
 		else self.cC = cC
 
+		#char conv bias
 		if cb == None:
 			self.cb  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cl+1)), high = sqrt(6/(cl+1)), size=(cl)),dtype=theano.config.floatX),borrow=True)
 		else self.cb = cb	
@@ -90,8 +101,9 @@ class sentnn(object):
 		self.params = [cW, wW, cC, wC, cb, wb]
 
 	def embed(self, inp, sent_len, sentvec):
-		# inp: sent_len *  s
-		# returns word + char embedding of sentence
+		# inp: word matrix of sentence
+		# inp size: sent_len *  s
+		# returns: word + char embedding of sentence
 		# size: sent_len * (cd+wd)
 		wemb = T.dot(inp, self.wW)
 
@@ -102,6 +114,12 @@ class sentnn(object):
 		return theano.shared(wemb, borrow=True)
 
 	def conv(self, inp, sent_len, sentvec):
+		# inp: word matrix of sent
+		# inp size: word_len * size 
+		# sent_len: length of sentence
+		# sentvec: list containing indices of words
+		# returns: convolutional output
+		# size: wl
 		k = self.wk
 		d = self.wd
 		wl = self.wl
@@ -115,24 +133,29 @@ class sentnn(object):
 			val = T.dot(z,C)+b
 			for j in xrange(wl):
 				conv[i] = max(conv[i],val[i])
-		# returns convolutional output
-		# size: wl
 		return theano.shared(conv, borrow=True)
 
 	def eval(self, inp, sent_len, sentvec):
 		return T.nnet.sigmoid(self.conv(inp,sent_len,sentvec))
 
-	def update(self, learning_rate, inp, sent_len, sentvec):
-		prob = self.eval(inp,sent_len,sentvec)
-		params = self.params
+def update(learning_rate=0.1, char_vocab_size, word_vocab_size, sentvec):
+		#updates neural net with a sentence as input
+		charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300)
+		
+		lr = LogisticRegression(input=charscnn.eval(inp, len(sentvec), sentvec), n_in=300, n_out=1)
+
+	    # the cost we minimize during training is the NLL of the model
+	    cost = lr.negative_log_likelihood(y)
+		
+		params = self.params+lr.params
 		grads = T.grad(cost, params)
+		
 		updates = []
     	for param_i, grad_i in zip(params, grads):
         	updates.append((param_i, param_i - learning_rate * grad_i))
-		# Do stochastic gradient descent
 
-def train(learning_rate,):
-
-
-
+        return (cost,updates)
+        
+#Training Code -- TODO
+cost, updates = ca.get_cost_updates(learning_rate=0.1)
 
