@@ -1,12 +1,6 @@
 import numpy, scipy, theano
 import theano.tensor as T
 
-def w2c(idx):
-	#returns character matrix of a word #idx
-
-def wlen(idx):
-	#returns len of word #idx
-
 class charnn(object):
 	
 	def __init__(self, rng, d, s, k, cl, W, C, b):
@@ -139,23 +133,30 @@ class sentnn(object):
 		return T.nnet.sigmoid(self.conv(inp,sent_len,sentvec))
 
 def update(learning_rate=0.1, char_vocab_size, word_vocab_size, sentvec):
-		#updates neural net with a sentence as input
-		charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300)
-		
-		lr = LogisticRegression(input=charscnn.eval(inp, len(sentvec), sentvec), n_in=300, n_out=1)
+	#updates neural net with a sentence as input
+	charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300)
 
-	    # the cost we minimize during training is the NLL of the model
-	    cost = lr.negative_log_likelihood(y)
-		
-		params = self.params+lr.params
-		grads = T.grad(cost, params)
-		
-		updates = []
-    	for param_i, grad_i in zip(params, grads):
-        	updates.append((param_i, param_i - learning_rate * grad_i))
+	lr = LogisticRegression(input=charscnn.eval(inp, len(sentvec), sentvec), n_in=300, n_out=1)
+	# the cost we minimize during training is the NLL of the model
+	cost = lr.negative_log_likelihood(y)
+	
+	params = self.params+lr.params
+	grads = T.grad(cost, params)
+	
+	updates = []
+	for param_i, grad_i in zip(params, grads):
+		updates.append((param_i, param_i - learning_rate * grad_i))
 
-        return (cost,updates)
-        
-#Training Code -- TODO
+	return (cost,updates)
+
+#data loading code here
+def w2c(idx):
+	#returns character matrix of a word #idx
+
+def wlen(idx):
+	#returns len of word #idx
+
+
+#training code here
 cost, updates = ca.get_cost_updates(learning_rate=0.1)
 
