@@ -40,6 +40,8 @@ def read(inp_file):
 			charmat[i][char_map[word[i]]]=1
 		word_char_mat.append(charmat)
 
+	print inp, word_char_mat
+
 	for sent in tokenized_tweets:
 		wordmat = [[0]*word_cnt]*len(sent)
 		for i in xrange(len(sent)):

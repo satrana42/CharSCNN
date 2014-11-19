@@ -3,6 +3,10 @@ import theano.tensor as T
 import cPickle as pickle
 from math import *
 from logistic_sgd import LogisticRegression
+from theano.tensor.nnet import conv
+from theano.tensor.signal import downsample
+#data loading code here
+char_vocab_size, word_vocab_size, _sentvec, inp, labels, _word_char_mat = pickle.load(open("data.pkl","rb"))
 
 class charnn(object):
 	
@@ -43,22 +47,16 @@ class charnn(object):
 		d = self.d
 		cl = self.cl
 		inp = self.embed(inp)
-		inp = numpy.append(numpy.array([[0]*d]*k),inp)
-		inp = numpy.append(inp,numpy.array([[0]*d]*k))
-		
-		conv = numpy.asarray([-100000000 for i in xrange(cl)])
-		for i in xrange(word_len):
-			z = inp[k+i-(k/2):k+i+(k-(k/2))]
-			z = T.reshape(z,(k*d))
-			val = T.dot(z,C)+b
-			for j in xrange(cl):
-				conv[i] = max(conv[i],val[i])
-
-		return theano.shared(conv, borrow=True)
+		inp = numpy.append(numpy.array([[0]*d]*(k/2)),inp)
+		inp = numpy.append(inp,numpy.array([[0]*d]*(k/2)))
+		convout = conv.conv2d(input=inp, filters=self.C)
+		pooled = downsample.max_pool_2d(input=convout, ds=(self.word_len, 1), ignore_border=True)
+		pooled += self.b
+		return theano.shared(pooled, borrow=True)
 
 class sentnn(object):
 
-	def __init__(self, rng, cd, cs, ck, cl, wd, ws, wk, wl, sent_len, cW=None, wW=None, cC=None, wC=None, cb=None, wb=None):
+	def __init__(self, rng, cd, cs, ck, cl, wd, ws, wk, wl, sent_len, sent_idx, cW=None, wW=None, cC=None, wC=None, cb=None, wb=None):
 		
 		self.cd = cd #character embedding dimension
 		self.cs = cs #character vocab size
@@ -70,6 +68,7 @@ class sentnn(object):
 		self.wk = wk
 		self.wl = wl
 		self.sent_len = sent_len
+		self.sent_idx = sent_idx
 		#char embedding matrix
 		if cW == None:
 			self.cW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cd+cs)), high = sqrt(6/(cd+cs)), size=(cs,cd)),dtype=theano.config.floatX),name='cW',borrow=True)
@@ -99,24 +98,24 @@ class sentnn(object):
 
 		ch = charnn(rng=rng, d=cd, s=cs, k=ck, cl=cl, W=cW, C=cC, b=cb, word_len=0)
 		self.params = [self.cW, self.wW, self.cC, self.wC, self.cb, self.wb]
-		print "sentnn params: ", self.params
+		#self.params = []
+		# print "sentnn params: ", self.params
 
-	def embed(self, inp, sentvec):
+	def embed(self, inp):
 		# inp: word matrix of sentence
 		# inp size: sent_len * word_vocab_size 
 		# returns: word + char embedding of sentence
 		# size: sent_len * (cd+wd)
 		wemb = T.dot(inp, self.wW)
-
+		global sentvec
 		for i in xrange(self.sent_len):
-			ch.word_len =  wlen(sentvec[i]);
-			cemb = ch.conv(w2c(sentvec[i]))
+			ch.word_len =  wlen(sentvec[self.sent_idx][i]);
+			cemb = ch.conv(w2c(sentvec[self.sent_idx][i]))
 			numpy.append(wemb[i],cemp)
 
 		return wemb
-		#return theano.shared(wemb, borrow=True)
 
-	def conv(self, inp, sentvec):
+	def conv(self, inp):
 		# inp: word matrix of sent
 		# inp size: sent_len * word_vocab_size 
 		# sent_len: length of sentence
@@ -126,43 +125,38 @@ class sentnn(object):
 		k = self.wk
 		d = self.wd
 		wl = self.wl
-		inp = self.embed(inp,sentvec)
-		inp = numpy.append(numpy.array([[0]*d]*k),inp)
-		inp = numpy.append(inp,numpy.array([[0]*d]*k))
-		conv = numpy.asarray([-100000000]*wl)
-		for i in xrange(self.sent_len):
-			z = inp[k+i-(k/2):k+i+(k-(k/2))]
-			z = T.reshape(z,(k*d))
-			val = T.dot(z,C)+b
-			for j in xrange(wl):
-				conv[i] = max(conv[i],val[i])
-		return theano.shared(conv, borrow=True)
+		inp = self.embed(inp)
+		inp = numpy.append(numpy.array([[0]*d]*(k/2)),inp)
+		inp = numpy.append(inp,numpy.array([[0]*d]*(k/2)))
+		convout = conv.conv2d(input=inp, filters=self.wC)
+		pooled = downsample.max_pool_2d(input=convout, ds=(self.sent_len, 1), ignore_border=True)
+		pooled += self.wb
+		return theano.shared(pooled, borrow=True)
 
-	def eval(self, inp, sentvec):
-		return T.nnet.sigmoid(self.conv(inp,sentvec))
+	def eval(self, inp):
+		return T.nnet.sigmoid(self.conv(inp))
 
-def train(char_vocab_size, word_vocab_size, sentvec, inp, labels, learning_rate=0.1, training_epochs=10):
+def train(char_vocab_size, word_vocab_size, inp, labels, learning_rate=0.1, training_epochs=10):
 	#updates neural net with a sentence as input
-	charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300, sent_len=0)
+	charscnn = sentnn(rng=numpy.random.RandomState(123), cd=5, cs=char_vocab_size, ck=3, cl=50, wd=30, ws=word_vocab_size, wk=5, wl=300, sent_len=0, sent_idx=0)
 	
-	idx  =T.scalar('idx')
+	idx = T.lscalar()
 	x = T.matrix('x')
-	s = T.vector('s')
 	y = T.iscalar('y')
 	
-	lr = LogisticRegression(input=charscnn.eval(x, s), n_in=300, n_out=1)
+	lr = LogisticRegression(input=charscnn.eval(x), n_in=300, n_out=1)
 	
 	# the cost we minimize during training is the NLL of the model
 	cost = lr.negative_log_likelihood(y)
 	
 	params = charscnn.params+lr.params
-	print params
+	#print params
 	grads = T.grad(cost, params)
 	updates = []
 	for param_i, grad_i in zip(params, grads):
 		updates.append((param_i, param_i - learning_rate * grad_i))
 
-	train_cnn = theano.function([idx], [T.mean(cost)], updates=updates, givens={x:inp[idx], s:sentvec[idx], y:labels[idx]}, mode="FAST_RUN")
+	train_cnn = theano.function([idx], [T.mean(cost)], updates=updates, givens={}, mode='DebugMode')
 
 	start_time = time.clock()
 
@@ -176,6 +170,8 @@ def train(char_vocab_size, word_vocab_size, sentvec, inp, labels, learning_rate=
 		c = []
 		for i in xrange(len(sentvec)):
 			charscnn.sent_len = len(sentvec[i])
+			charscnn.sent_idx = i
+			#print inp[i]
 			c.append(train_cnn(i))
 		c_array = numpy.vstack(c)
 		print 'Training epoch %d, reconstruction cost ' % epoch, numpy.mean(c_array[0]), ' jacobian norm ', numpy.mean(numpy.sqrt(c_array[1]))
@@ -183,15 +179,12 @@ def train(char_vocab_size, word_vocab_size, sentvec, inp, labels, learning_rate=
 
 	training_time = (end_time - start_time)/60.
 
-	print "Training Time: ", training_time
+	print "Training Time: ", training_time, " m"
 	
 
-#data loading code here
-char_vocab_size, word_vocab_size, sentvec, inp, labels, word_char_mat = pickle.load(open("data.pkl","rb"))
-
-inp = theano.shared(numpy.array(inp))
-labels = theano.shared(numpy.array(labels))
-word_char_mat = theano.shared(numpy.array(word_char_mat))
+inp = theano.shared(value=numpy.asarray(inp,dtype=theano.config.floatX), borrow=True)
+labels = theano.shared(value=numpy.asarray(labels,dtype=theano.config.floatX), borrow=True)
+#word_char_mat = theano.shared(value=numpy.asarray(word_char_mat,dtype=theano.config.floatX), borrow=True)
 
 def w2c(idx):
 	#returns character matrix of a word #idx
@@ -201,7 +194,7 @@ def wlen(idx):
 	#returns len of word #idx
 	return len(word_char_mat[idx])
 
-train(char_vocab_size=char_vocab_size, word_vocab_size=word_vocab_size, sentvec=sentvec, inp=inp, labels=labels)
+train(char_vocab_size=char_vocab_size, word_vocab_size=word_vocab_size, inp=inp, labels=labels)
 
 
 
