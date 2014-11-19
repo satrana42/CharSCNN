@@ -5,8 +5,11 @@ from math import *
 from logistic_sgd import LogisticRegression
 from theano.tensor.nnet import conv
 from theano.tensor.signal import downsample
+
 #data loading code here
 char_vocab_size, word_vocab_size, _sentvec, inp, labels, _word_char_mat = pickle.load(open("data.pkl","rb"))
+inp = theano.shared(value=numpy.asarray(inp,dtype=theano.config.floatX), borrow=True)
+labels = theano.shared(value=numpy.asarray(labels,dtype=theano.config.floatX), borrow=True)
 
 class charnn(object):
 	
@@ -18,15 +21,15 @@ class charnn(object):
 		self.word_len = word_len
 
 		if W == None:
-			self.W = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(d+s)), high = sqrt(6/(d+s)), size=(s,d)),dtype=theano.config.floatX),borrow=True)
+			self.W = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(d+s)), high = sqrt(6./(d+s)), size=(s,d)),dtype=theano.config.floatX),borrow=True)
 		else: self.W = W
 
 		if C == None:
-			self.C = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(d*k+cl)), high = sqrt(6/(d*k+cl)), size=(d*k,cl)),dtype=theano.config.floatX),borrow=True)
+			self.C = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(d*k+cl)), high = sqrt(6./(d*k+cl)), size=(d*k,cl)),dtype=theano.config.floatX),borrow=True)
 		else: self.C = C
 
 		if b == None:
-			self.b  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(d+s)), high = sqrt(6/(1+cl)), size=(cl)),dtype=theano.config.floatX),borrow=True)
+			self.b  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(d+s)), high = sqrt(6./(1+cl)), size=(cl)),dtype=theano.config.floatX),borrow=True)
 		else: self.W = W	
 
 		self.params = [self.W, self.C, self.b]
@@ -71,29 +74,29 @@ class sentnn(object):
 		self.sent_idx = sent_idx
 		#char embedding matrix
 		if cW == None:
-			self.cW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cd+cs)), high = sqrt(6/(cd+cs)), size=(cs,cd)),dtype=theano.config.floatX),name='cW',borrow=True)
+			self.cW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(cd+cs)), high = sqrt(6./(cd+cs)), size=(cs,cd)),dtype=theano.config.floatX),name='cW',borrow=True)
 		else: self.cW = cW
 
 		#char conv matrix
 		if cC == None:
-			self.cC = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cd*ck+cl)), high = sqrt(6/(cd*ck+cl)), size=(cd*ck,cl)),dtype=theano.config.floatX),name='cC',borrow=True)
+			self.cC = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(cd*ck+cl)), high = sqrt(6./(cd*ck+cl)), size=(cd*ck,cl)),dtype=theano.config.floatX),name='cC',borrow=True)
 		else: self.cC = cC
 
 		#char conv bias
 		if cb == None:
-			self.cb  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(cl+1)), high = sqrt(6/(cl+1)), size=(cl)),dtype=theano.config.floatX),name='cb',borrow=True)
+			self.cb  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(cl+1)), high = sqrt(6./(cl+1)), size=(cl)),dtype=theano.config.floatX),name='cb',borrow=True)
 		else: self.cb = cb	
 
 		if wW == None:
-			self.wW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(wd+ws)), high = sqrt(6/(wd+ws)), size=(ws,wd)),dtype=theano.config.floatX),name='wW',borrow=True)
+			self.wW = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(wd+ws)), high = sqrt(6./(wd+ws)), size=(ws,wd)),dtype=theano.config.floatX),name='wW',borrow=True)
 		else: self.wW = wW
 
 		if wC == None:
-			self.wC = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(wd*wk+wl)), high = sqrt(6/(wd*wk+wl)), size=(wd*wk,wl)),dtype=theano.config.floatX),name='wC',borrow=True)
+			self.wC = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(wd*wk+wl)), high = sqrt(6./(wd*wk+wl)), size=(wd*wk,wl)),dtype=theano.config.floatX),name='wC',borrow=True)
 		else: self.wC = wC
 
 		if wb == None:
-			self.wb  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6/(wl+1)), high = sqrt(6/(1+wl)), size=(wl)),dtype=theano.config.floatX),name='wb',borrow=True)
+			self.wb  = theano.shared(numpy.asarray(rng.uniform(low = -sqrt(6./(wl+1)), high = sqrt(6./(1+wl)), size=(wl)),dtype=theano.config.floatX),name='wb',borrow=True)
 		else: self.wb = wb
 
 		ch = charnn(rng=rng, d=cd, s=cs, k=ck, cl=cl, W=cW, C=cC, b=cb, word_len=0)
@@ -106,14 +109,19 @@ class sentnn(object):
 		# inp size: sent_len * word_vocab_size 
 		# returns: word + char embedding of sentence
 		# size: sent_len * (cd+wd)
+		#print self.wW.eval()
 		wemb = T.dot(inp, self.wW)
 		global sentvec
+		temp = []
 		for i in xrange(self.sent_len):
 			ch.word_len =  wlen(sentvec[self.sent_idx][i]);
-			cemb = ch.conv(w2c(sentvec[self.sent_idx][i]))
-			numpy.append(wemb[i],cemp)
+			convout = ch.conv(w2c(sentvec[self.sent_idx][i]))
+			temp.append(convout)
 
-		return wemb
+		cemb = T.stack(temp[i] for i in xrange(len(temp)))
+		print temp, cemb
+		ret = T.concatenate([wemb,cemb],axis=1)
+		return theano.shared(ret , borrow=True)
 
 	def conv(self, inp):
 		# inp: word matrix of sent
@@ -156,7 +164,7 @@ def train(char_vocab_size, word_vocab_size, inp, labels, learning_rate=0.1, trai
 	for param_i, grad_i in zip(params, grads):
 		updates.append((param_i, param_i - learning_rate * grad_i))
 
-	train_cnn = theano.function([idx], [T.mean(cost)], updates=updates, givens={}, mode='DebugMode')
+	train_cnn = theano.function([idx],[T.mean(cost)], updates=updates, givens={x:inp[idx], y:labels[idx]}, mode='FAST_RUN')
 
 	start_time = time.clock()
 
@@ -171,7 +179,7 @@ def train(char_vocab_size, word_vocab_size, inp, labels, learning_rate=0.1, trai
 		for i in xrange(len(sentvec)):
 			charscnn.sent_len = len(sentvec[i])
 			charscnn.sent_idx = i
-			#print inp[i]
+			inp[i].eval()
 			c.append(train_cnn(i))
 		c_array = numpy.vstack(c)
 		print 'Training epoch %d, reconstruction cost ' % epoch, numpy.mean(c_array[0]), ' jacobian norm ', numpy.mean(numpy.sqrt(c_array[1]))
@@ -181,9 +189,6 @@ def train(char_vocab_size, word_vocab_size, inp, labels, learning_rate=0.1, trai
 
 	print "Training Time: ", training_time, " m"
 	
-
-inp = theano.shared(value=numpy.asarray(inp,dtype=theano.config.floatX), borrow=True)
-labels = theano.shared(value=numpy.asarray(labels,dtype=theano.config.floatX), borrow=True)
 #word_char_mat = theano.shared(value=numpy.asarray(word_char_mat,dtype=theano.config.floatX), borrow=True)
 
 def w2c(idx):
