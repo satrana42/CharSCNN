@@ -19,7 +19,7 @@ def read(inp_file):
 	x_chr = []
 	x_wrd = []
 
-	max_word_len, max_sent_len, num_sent = 0, 0, 16000
+	max_word_len, max_sent_len, num_sent = 0, 0, 1000
 
 	for line in lines[:num_sent]:
 		words = line[:-1].split()

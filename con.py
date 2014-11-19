@@ -112,7 +112,7 @@ class LeNetConvPoolLayer(object):
         self.params = [self.W, self.b]
 
 
-def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
+def evaluate_lenet5(learning_rate=0.1, n_epochs=10,
                     dataset='mnist.pkl.gz',
                     nkerns=[20, 50], batch_size=500):
     """ Demonstrates lenet on MNIST dataset
@@ -130,12 +130,12 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     :type nkerns: list of ints
     :param nkerns: number of kernels on each layer
     """
-    d_wrd = 30
+    d_wrd = 10
     k_wrd = 5
     d_char = 5
     k_char = 3
-    cl_char = 50
-    cl_wrd = 300
+    cl_char = 10
+    cl_wrd = 50
 
     rng = numpy.random.RandomState(23455)
 
@@ -146,7 +146,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
     set_char = theano.shared(numpy.array(set_char,dtype=theano.config.floatX),borrow=True)
     set_wrd = theano.shared(numpy.array(set_wrd,dtype=theano.config.floatX),borrow=True)
     set_y = theano.shared(numpy.array(set_y),borrow=True)
-
+    print "prepared"
     n_train_batches = 8*num_sent/10
     n_valid_batches = num_sent/10
     n_test_batches = num_sent/10
@@ -233,12 +233,12 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
         rng,
         input=layer4_input,
         n_in=cl_wrd,
-        n_out=300,
+        n_out=50,
         activation=T.tanh
     )
 
     # classify the values of the fully-connected sigmoidal layer
-    layer5 = LogisticRegression(input=layer4.output, n_in=300, n_out=2)
+    layer5 = LogisticRegression(input=layer4.output, n_in=50, n_out=2)
 
     # the cost we minimize during training is the NLL of the model
     #theano.printing.Print('this is a very important value')(x_chr)
@@ -258,6 +258,7 @@ def evaluate_lenet5(learning_rate=0.1, n_epochs=200,
 
     validate_model = theano.function(
         [index],
+        #layer5.negative_log_likelihood(y),
         layer5.errors(y),
         givens={
             x_wrd: val_x_wrd[index],
