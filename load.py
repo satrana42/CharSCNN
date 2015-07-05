@@ -50,7 +50,7 @@ def read(inp_file):
 		x_wrd.append(word_mat)
 	max_word_len += k_chr-1
 	max_sent_len += k_wrd-1
-	print char_cnt, word_cnt, max_word_len, max_sent_len
+	# print char_cnt, word_cnt, max_word_len, max_sent_len
 	#print numpy.shape(numpy.array(x_chr)), numpy.shape(numpy.array(x_wrd)), numpy.shape(numpy.array(y))
 	data = (num_sent,char_cnt, word_cnt, max_word_len, max_sent_len, x_chr, x_wrd, y)
 	return data

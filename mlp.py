@@ -98,7 +98,6 @@ class HiddenLayer(object):
         if isb==1:
             lin_output = T.dot(input, self.W) + self.b
         else:
-            print "yolo"
             lin_output = T.dot(input, self.W)
         self.output = (lin_output if activation is None
                        else activation(lin_output))
