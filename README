@@ -1,0 +1,9 @@
+This is an implementation of `CharSCNN`, and is heavily based on (Theano's CNN)[http://www.deeplearning.net/tutorial/lenet.html#lenet]
+
+This code is an implementation exercise of CharSCNN, and might not reflect original ideas.
+
+We achieved about 70% accuracy, on a different dataset than original paper, and a network with smaller dimensions thanoriginal one. 
+
+The network was trained on a powerful non GPU machine.
+
+Read more in Report.pdf to know about other details.
